@@ -1,0 +1,13 @@
+Stock Trading Application
+
+This application uses a MySQL database containing stock trading information for 100+ companies.
+Users are prompted to enter a company 'ticker' and optional date range to retrieve an optimal
+investment strategy. If no range is given, an investment strategy is executed across all dates
+available for a specifc ticker.
+
+This class will identify and adjust for stock splits, and will execute an investment strategy
+designed to maximize profits through buying/selling shares in response to a moving market
+average price.
+
+Currently, an established connection with the johnson330 database is required for proper
+execution. An example interaction of the program is provided in the "sample_out.txt" file.
