@@ -18,7 +18,7 @@ public class StockTrading {
     static Connection conn = null;
 
     public static void main(String[] args) throws Exception {
-        int isCompanyPresent;
+        boolean isCompanyPresent;
         ArrayList<Entry> entryList;
 
         // Get connection properties
@@ -58,7 +58,7 @@ public class StockTrading {
                     isCompanyPresent = getCompanyName(userInput[0]);
 
                     /* If we could not find the ticker in the DB */
-                    if (isCompanyPresent == -1) {
+                    if (!isCompanyPresent) {
                         System.out.println(userInput[0] + " not found in database.\n");
                     }
                     else {
@@ -96,14 +96,14 @@ public class StockTrading {
        returns an int that describes whether or not the query returns any results. If the company name is found in the
        DB, returns 0. Otherwise, returns -1 and prints an error to the user.
      */
-    static int getCompanyName(String ticker) throws SQLException {
+    static boolean getCompanyName(String ticker) throws SQLException {
         Statement stmnt = conn.createStatement();
         ResultSet results = stmnt.executeQuery("select distinct Name from company " +
                 "where Ticker = '" + ticker + "'");
         /* Returns a negative one if we don't retrieve any results */
         if (!results.isBeforeFirst()) {
             stmnt.close();
-            return -1;
+            return false;
         }
         /* Prints the name of the company associated with ticker to the console and returns 0 */
         else {
@@ -111,7 +111,7 @@ public class StockTrading {
                 System.out.println(results.getString("Name"));
             }
             stmnt.close();
-            return 0;
+            return true;
         }
     }
 
@@ -290,21 +290,42 @@ public class StockTrading {
        further liquidate any remaining shares. Finally, method prints the total number of transactions as well as net
        cash accrued to the user
      */
-    public static void getTradingInfo(ArrayList<Entry> list) {
+    public static void getTradingInfo(ArrayList<Entry> list)throws FileNotFoundException, UnsupportedEncodingException, IOException {
         Collections.reverse(list);
         int size = list.size();
         int curr = 50;
-        Entry currEntry;
+        Entry currEntry = list.get(0);
         int fiftyDaysPrior = 0;
-        double avgClosePrice;
+        double avgClosePrice = currEntry.closePrice;
         double cash = 0;
         int transCount = 0;
         int numOfShares = 0;
         DecimalFormat df = new DecimalFormat("#.##");
+        Scanner input = new Scanner(System.in);
+        String userInput = "";
+        PrintWriter writer = new PrintWriter("translog.txt", "UTF-8");
+        
+        boolean transLog = false;
 
         /* If the query gave us more than 51 results, we can generate a rolling average for closing prices */
         if (size > 51) {
 
+            System.out.println("Would you like to see the transaction log for the investment strategy (y/n)?");
+            userInput = input.nextLine();
+            
+            // Get valid selection from user
+            while (!userInput.equalsIgnoreCase("n") && !userInput.equalsIgnoreCase("y")) {
+            System.out.println("Sorry, I did not recognize that. Please type y for yes or n for no.");
+            userInput = input.nextLine();
+            }
+            
+            // set translog flag
+            if (userInput.equalsIgnoreCase("y")) {
+               transLog = true;
+               System.out.println("Writing investment strategy transaction log to translog.txt...");
+               writer.println("Ticker: " + list.get(0).ticker);
+            }
+            
             /* Loop through until we reach the last trading day */
             while (curr < size - 1) {
 
@@ -326,6 +347,11 @@ public class StockTrading {
                     numOfShares += 100;
                     cash -= (100 * list.get(curr+1).openingPrice);
                     cash -= 8;
+                    if (transLog) {
+                         writer.printf("Buy: %s 100 shares @ %.7f, total shares = %d, cash = %.7f%n",
+                         list.get(curr+1).date, list.get(curr+1).openingPrice, numOfShares, cash);
+                         writer.flush();
+                      }
                 }
                 /* Selling criteria - if we have shares to sell AND today's opening price is greater than the average
                    closing price AND today's opening price exceeds yesterdays closing price by 1% or more.
@@ -337,6 +363,11 @@ public class StockTrading {
                     numOfShares -= 100;
                     cash += (100 * todaysAvgPrice);
                     cash -= 8;
+                    if (transLog) {
+                        writer.printf("Sell: %s 100 shares @ %.7f, total shares = %d, cash = %.7f%n",
+                        currEntry.date, todaysAvgPrice, numOfShares, cash);
+                        writer.flush();
+                    }
                 }
 
                 curr++;
@@ -347,6 +378,11 @@ public class StockTrading {
             if (numOfShares > 0) {
                 cash += (list.get(curr).openingPrice * numOfShares);
                 transCount++;
+                if (transLog) {
+                     writer.printf("Final sale: %s %d shares @ %.7f, cash = %.7f (average = %.7f)%n",
+                     currEntry.date, numOfShares, currEntry.openingPrice, cash, avgClosePrice);
+                     writer.flush();
+                }
             }
 
             /* Print out the results after all trading is finished for the company */
